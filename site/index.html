@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Duze | Local favourites. Delivered.</title>
+    <meta
+      name="description"
+      content="Duze is a local delivery marketplace starting in eXobho, KwaZulu-Natal, connecting customers, merchants, riders and admins."
+    >
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Duze home">
+        <span class="brand-mark">D</span>
+        <span>Duze</span>
+      </a>
+      <nav class="nav" aria-label="Main navigation">
+        <a href="#platform">Platform</a>
+        <a href="#features">Features</a>
+        <a href="#build">Build</a>
+        <a href="#roadmap">Roadmap</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <img src="assets/duze-hero.png" alt="A motorcycle delivery rider collecting local food in a South African town.">
+        <div class="hero-shade"></div>
+        <div class="hero-content">
+          <p class="eyebrow">Starting in eXobho, KwaZulu-Natal</p>
+          <h1 id="hero-title">Duze</h1>
+          <p class="tagline">Local favourites. Delivered.</p>
+          <p class="hero-copy">
+            A local delivery marketplace for restaurants, shisanyamas, takeaways and approved stores, built around reliable zones, trusted riders and practical town-by-town growth.
+          </p>
+          <div class="hero-actions" aria-label="Primary links">
+            <a class="button primary" href="#pilot">Pilot model</a>
+            <a class="button secondary" href="#build">Technical plan</a>
+          </div>
+        </div>
+      </section>
+
+      <section id="pilot" class="section intro-grid">
+        <div>
+          <p class="eyebrow">Focused launch</p>
+          <h2>Built for a real central eXobho pilot.</h2>
+          <p>
+            Duze starts with a defined service area, 5-10 merchants and a small motorcycle rider fleet. The goal is dependable operations first: accurate availability, clear delivery eligibility, disciplined order states and admin-controlled fees.
+          </p>
+        </div>
+        <div class="stats" aria-label="Pilot targets">
+          <div>
+            <strong>5-10</strong>
+            <span>pilot merchants</span>
+          </div>
+          <div>
+            <strong>1</strong>
+            <span>central launch zone</span>
+          </div>
+          <div>
+            <strong>4</strong>
+            <span>core user groups</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="platform" class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Marketplace model</p>
+          <h2>One platform for customers, merchants, riders and operators.</h2>
+        </div>
+        <div class="role-grid">
+          <article class="role-card">
+            <span class="icon">01</span>
+            <h3>Customers</h3>
+            <p>Discover local food and eligible products, save addresses, order, pay and track delivery from placement to handoff.</p>
+          </article>
+          <article class="role-card">
+            <span class="icon">02</span>
+            <h3>Local Businesses</h3>
+            <p>Manage profile, hours, menu items, prices, availability, incoming orders, preparation status and basic analytics.</p>
+          </article>
+          <article class="role-card">
+            <span class="icon">03</span>
+            <h3>Riders</h3>
+            <p>Go online, receive delivery offers, navigate to pickup and drop-off, confirm handoff and review earnings.</p>
+          </article>
+          <article class="role-card">
+            <span class="icon">04</span>
+            <h3>Admins</h3>
+            <p>Approve participants, configure zones and fees, monitor orders, manage disputes, run reports and maintain audit logs.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="features" class="section split">
+        <div>
+          <p class="eyebrow">Product scope</p>
+          <h2>Designed around the full order journey.</h2>
+          <p>
+            The MVP flow is simple: browse, cart, checkout, merchant acceptance, rider assignment, pickup, delivery and rating. Each step is backed by a strict state machine so impossible transitions are blocked.
+          </p>
+        </div>
+        <div class="timeline" aria-label="Order journey">
+          <div><span></span>Order placed</div>
+          <div><span></span>Merchant accepts</div>
+          <div><span></span>Preparing</div>
+          <div><span></span>Rider assigned</div>
+          <div><span></span>Picked up</div>
+          <div><span></span>Delivered</div>
+        </div>
+      </section>
+
+      <section class="section feature-bands" aria-label="Feature groups">
+        <article>
+          <h3>Customer Experience</h3>
+          <p>Accounts, saved addresses, search, category browsing, menus, item options, cart, checkout, order history, ratings, support and low-bandwidth friendly loading states.</p>
+        </article>
+        <article>
+          <h3>Merchant Portal</h3>
+          <p>Onboarding, verification, business hours, menu CRUD, sold-out toggles, live orders, preparation estimates, history, analytics and commission statements.</p>
+        </article>
+        <article>
+          <h3>Rider App</h3>
+          <p>Approval, online status, delivery offers, pickup/drop-off information, navigation deep links, proof of delivery and earnings history.</p>
+        </article>
+        <article>
+          <h3>Admin Console</h3>
+          <p>Users, merchants, riders, orders, delivery zones, fee rules, commissions, promotions, disputes, reports, roles and audit events.</p>
+        </article>
+      </section>
+
+      <section id="build" class="section build">
+        <div class="section-heading">
+          <p class="eyebrow">Architecture</p>
+          <h2>Production stack with room to grow.</h2>
+        </div>
+        <div class="build-layout">
+          <div class="stack-list">
+            <div><strong>Web</strong><span>Next.js + TypeScript</span></div>
+            <div><strong>Mobile</strong><span>React Native + Expo</span></div>
+            <div><strong>Backend</strong><span>Java 21 + Spring Boot</span></div>
+            <div><strong>Database</strong><span>PostgreSQL with migrations</span></div>
+            <div><strong>Integrations</strong><span>Maps, payments, storage and notifications behind adapters</span></div>
+          </div>
+          <div class="system-map" aria-label="System architecture overview">
+            <div class="node clients">Web + Mobile Apps</div>
+            <div class="connector"></div>
+            <div class="node api">Secure Backend API</div>
+            <div class="connector"></div>
+            <div class="node services">PostgreSQL · Redis · Providers</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section compliance">
+        <div>
+          <p class="eyebrow">Safety and compliance</p>
+          <h2>Restricted categories stay controlled.</h2>
+        </div>
+        <p>
+          Alcohol is treated as an optional age-restricted category, not ordinary food. It remains disabled until licensing, KZN-specific legal advice, merchant approval and handoff verification workflows are ready.
+        </p>
+      </section>
+
+      <section id="roadmap" class="section roadmap">
+        <div class="section-heading">
+          <p class="eyebrow">MVP path</p>
+          <h2>Eight focused build phases.</h2>
+        </div>
+        <ol>
+          <li><strong>Discovery</strong><span>Zones, rules, wireframes and brand system.</span></li>
+          <li><strong>Foundation</strong><span>Backend, database, auth, roles and migrations.</span></li>
+          <li><strong>Merchant</strong><span>Onboarding, profiles, hours and menu management.</span></li>
+          <li><strong>Customer</strong><span>Home, search, merchant pages, cart and checkout.</span></li>
+          <li><strong>Orders</strong><span>State machine, merchant live orders and timeline.</span></li>
+          <li><strong>Rider</strong><span>Dispatch, assignment, pickup and delivery proof.</span></li>
+          <li><strong>Admin</strong><span>Fees, reports, support, zones and operational controls.</span></li>
+          <li><strong>Pilot</strong><span>Payments, notifications, testing and controlled launch.</span></li>
+        </ol>
+      </section>
+
+      <section class="section metrics">
+        <div>
+          <p class="eyebrow">Pilot metrics</p>
+          <h2>Measure operational reliability from day one.</h2>
+        </div>
+        <ul>
+          <li>Completed orders per day</li>
+          <li>Order acceptance rate</li>
+          <li>Average preparation time</li>
+          <li>Pickup-to-delivery time</li>
+          <li>Cancellation rate</li>
+          <li>Repeat-customer rate</li>
+          <li>Active merchants and riders</li>
+          <li>Customer rating</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <strong>Duze</strong>
+      <span>Local favourites. Delivered.</span>
+      <a href="#top">Back to top</a>
+    </footer>
+  </body>
+</html>
