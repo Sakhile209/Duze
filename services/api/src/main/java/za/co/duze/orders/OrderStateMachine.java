@@ -1,81 +1,65 @@
 package za.co.duze.orders;
 
 import java.time.Clock;
-import java.util.EnumMap;
-import java.util.EnumSet;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
+import static za.co.duze.orders.OrderStatus.*;
+import static za.co.duze.orders.ActorRole.*;
 
+/** Graph/role validation only. Transactional command services must enforce ownership and business prerequisites. */
 public final class OrderStateMachine {
-    private static final Map<OrderStatus, Set<OrderStatus>> TRANSITIONS = new EnumMap<>(OrderStatus.class);
-
+    private record Edge(OrderStatus from, OrderStatus to) {}
+    private static final Map<Edge, Set<ActorRole>> RULES = new HashMap<>();
     static {
-        TRANSITIONS.put(OrderStatus.PLACED, EnumSet.of(OrderStatus.ACCEPTED, OrderStatus.CANCELLED));
-        TRANSITIONS.put(OrderStatus.ACCEPTED, EnumSet.of(OrderStatus.PREPARING, OrderStatus.CANCELLED));
-        TRANSITIONS.put(OrderStatus.PREPARING, EnumSet.of(OrderStatus.RIDER_ASSIGNED, OrderStatus.CANCELLED));
-        TRANSITIONS.put(OrderStatus.RIDER_ASSIGNED, EnumSet.of(OrderStatus.PICKED_UP, OrderStatus.CANCELLED));
-        TRANSITIONS.put(OrderStatus.PICKED_UP, EnumSet.of(OrderStatus.ON_THE_WAY, OrderStatus.CANCELLED));
-        TRANSITIONS.put(OrderStatus.ON_THE_WAY, EnumSet.of(OrderStatus.DELIVERED, OrderStatus.CANCELLED));
-        TRANSITIONS.put(OrderStatus.DELIVERED, EnumSet.of(OrderStatus.REFUND_PENDING));
-        TRANSITIONS.put(OrderStatus.REFUND_PENDING, EnumSet.of(OrderStatus.REFUNDED));
-        TRANSITIONS.put(OrderStatus.CANCELLED, EnumSet.of(OrderStatus.REFUND_PENDING));
-        TRANSITIONS.put(OrderStatus.REFUNDED, EnumSet.noneOf(OrderStatus.class));
+        allow(CREATED, PAYMENT_PENDING, SYSTEM);
+        allow(CREATED, PLACED, SYSTEM);
+        allow(PAYMENT_PENDING, PLACED, SYSTEM);
+        allow(PLACED, MERCHANT_ACCEPTED, MERCHANT);
+        allow(PLACED, REJECTED, MERCHANT);
+        allow(MERCHANT_ACCEPTED, PREPARING, MERCHANT);
+        allow(PREPARING, RIDER_SEARCHING, SYSTEM);
+        allow(RIDER_SEARCHING, RIDER_ASSIGNED, SYSTEM, ADMIN);
+        allow(RIDER_ASSIGNED, READY_FOR_PICKUP, MERCHANT, SYSTEM);
+        allow(READY_FOR_PICKUP, RIDER_AT_PICKUP, RIDER, SYSTEM);
+        allow(RIDER_AT_PICKUP, PICKED_UP, RIDER);
+        allow(PICKED_UP, OUT_FOR_DELIVERY, RIDER);
+        allow(OUT_FOR_DELIVERY, DELIVERED, RIDER);
+        for (var state : EnumSet.of(CREATED, PAYMENT_PENDING, PLACED)) {
+            allow(state, CANCELLED, CUSTOMER, ADMIN, SYSTEM);
+        }
+        for (var state : EnumSet.of(MERCHANT_ACCEPTED, PREPARING, RIDER_SEARCHING,
+                RIDER_ASSIGNED, READY_FOR_PICKUP, RIDER_AT_PICKUP)) {
+            allow(state, CANCELLED, ADMIN);
+        }
+        allow(PICKED_UP, DELIVERY_FAILED, RIDER, ADMIN);
+        allow(OUT_FOR_DELIVERY, DELIVERY_FAILED, RIDER, ADMIN);
+        for (var state : EnumSet.of(REJECTED, CANCELLED, DELIVERY_FAILED, DELIVERED)) {
+            allow(state, REFUND_PENDING, ADMIN, SYSTEM);
+        }
+        allow(REFUND_PENDING, REFUNDED, SYSTEM);
     }
-
+    private static void allow(OrderStatus from, OrderStatus to, ActorRole... roles) {
+        RULES.put(new Edge(from, to), Set.of(roles));
+    }
     private final Clock clock;
+    public OrderStateMachine(Clock clock) { this.clock = Objects.requireNonNull(clock); }
 
-    public OrderStateMachine(Clock clock) {
-        this.clock = Objects.requireNonNull(clock, "clock is required");
-    }
-
-    public AuditEvent transition(
-            UUID orderId,
-            OrderStatus fromStatus,
-            OrderStatus toStatus,
-            ActorRole actorRole,
-            String reason
-    ) {
-        Objects.requireNonNull(orderId, "orderId is required");
-        Objects.requireNonNull(fromStatus, "fromStatus is required");
-        Objects.requireNonNull(toStatus, "toStatus is required");
-        Objects.requireNonNull(actorRole, "actorRole is required");
-
-        if (!canTransition(fromStatus, toStatus)) {
-            throw new OrderTransitionException("Cannot transition order from " + fromStatus + " to " + toStatus);
+    public AuditEvent transition(UUID orderId, OrderStatus from, OrderStatus to, ActorRole actor, String reason) {
+        Objects.requireNonNull(orderId);
+        Objects.requireNonNull(from);
+        Objects.requireNonNull(to);
+        Objects.requireNonNull(actor);
+        if (!canTransition(from, to)) throw new OrderTransitionException("Cannot transition order from " + from + " to " + to);
+        if (!RULES.get(new Edge(from, to)).contains(actor)) {
+            throw new OrderTransitionException(actor + " cannot transition " + from + " to " + to);
         }
-
-        if (toStatus == OrderStatus.CANCELLED && !canCancel(fromStatus, actorRole)) {
-            throw new OrderTransitionException(actorRole + " cannot cancel an order from " + fromStatus);
+        if (Set.of(REJECTED, CANCELLED, DELIVERY_FAILED, REFUND_PENDING).contains(to)
+                && (reason == null || reason.isBlank())) {
+            throw new OrderTransitionException("A reason is required for " + to);
         }
-
-        return new AuditEvent(
-                UUID.randomUUID(),
-                orderId,
-                actorRole,
-                fromStatus,
-                toStatus,
-                reason,
-                clock.instant()
-        );
+        return new AuditEvent(UUID.randomUUID(), orderId, actor, from, to, reason, clock.instant());
     }
-
-    public boolean canTransition(OrderStatus fromStatus, OrderStatus toStatus) {
-        return TRANSITIONS.getOrDefault(fromStatus, Set.of()).contains(toStatus);
-    }
-
-    public boolean canCancel(OrderStatus fromStatus, ActorRole actorRole) {
-        return switch (actorRole) {
-            case CUSTOMER -> fromStatus == OrderStatus.PLACED || fromStatus == OrderStatus.ACCEPTED;
-            case MERCHANT -> fromStatus == OrderStatus.PLACED
-                    || fromStatus == OrderStatus.ACCEPTED
-                    || fromStatus == OrderStatus.PREPARING;
-            case RIDER -> false;
-            case ADMIN, SYSTEM -> fromStatus != OrderStatus.DELIVERED
-                    && fromStatus != OrderStatus.REFUND_PENDING
-                    && fromStatus != OrderStatus.REFUNDED
-                    && fromStatus != OrderStatus.CANCELLED;
-        };
+    public boolean canTransition(OrderStatus from, OrderStatus to) { return RULES.containsKey(new Edge(from, to)); }
+    public boolean canCancel(OrderStatus from, ActorRole actor) {
+        return RULES.getOrDefault(new Edge(from, CANCELLED), Set.of()).contains(actor);
     }
 }

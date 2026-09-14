@@ -1,526 +1,328 @@
-# Duze Project Plan
+# Duze — pilot product and delivery blueprint
 
-Duze is a local delivery marketplace for eXobho (Ixopo), KwaZulu-Natal, connecting customers, local merchants, motorcycle riders and platform admins.
+Status: proposed pilot design, 14 September 2026. Build increment 1: catalogue and order-domain foundation. This document specifies the destination; it does not claim all capabilities are implemented. See README for verified implementation status.
 
-Tagline: **Local favourites. Delivered.**
+## 1. Assumptions and questions
 
-## 1. Assumptions And Open Questions
+Proceed with one merchant per basket, ZAR integer cents, Africa/Johannesburg business hours, email/password initially, customer PIN as default delivery proof, in-app support tickets, and a modular monolith. Sample merchants, location, prices and preparation times are fictional development data, not operational promises. Seed radius and fees must be reviewed before launch.
 
-### Assumptions
+Decisions needed before the relevant integration: actual service boundary and merchant list; gateway and settlement account; commission/rider earnings and refund responsibility; rider operating arrangements; support staffing/hours; notification and map providers; identity verification process. None blocks catalogue development. Cash/manual payments are disabled unless an administrator explicitly enables them. Restricted products are disabled for the pilot. No multi-merchant checkout.
 
-- Launch starts in a configurable central eXobho delivery zone with 5-10 merchants and a small rider fleet.
-- MVP supports prepared food, shisanyama, takeaways and approved non-restricted store products.
-- Alcohol and other age-restricted items stay disabled until legal review, merchant licensing checks and operational controls are ready.
-- One backend API serves customer web, customer mobile, merchant dashboard, rider app and admin dashboard.
-- Payment architecture must support South African providers, but the MVP can include a provider abstraction and admin-enabled manual/cash mode.
-- Maps, routing, notifications, object storage and payments are integrated behind provider interfaces.
-- Admin users can change zones, fees, commissions, merchant approval and rider approval without code changes.
-- The first implementation should prioritize reliable order state, dispatch integrity and operational visibility over advanced marketplace automation.
+## 2. Product requirements document
 
-### Questions That Affect The Build
+**Outcome:** connect eXobho customers, 5–10 approved food/store merchants and a small motorcycle fleet through one reliable order record. Original Duze identity: “Local favourites. Delivered.”
 
-- Which payment gateway should be prioritized first for South Africa?
-- Should phone OTP be mandatory at launch, or can email/password plus phone verification follow?
-- Will riders be employees, contractors or merchant-provided drivers?
-- What proof of delivery is preferred for MVP: PIN, photo, signature or admin-configurable options?
-- What exact central eXobho service boundary should define the first delivery zone?
-- Should customers be allowed to order from multiple merchants in one checkout, or one merchant per order for MVP?
-- What commission, delivery-fee and payout rules should be used for pilot merchants?
-- Which operational support channel should be available first: in-app tickets, WhatsApp handoff, phone, or email?
+**Customer:** account, verified contact, address pin plus landmark, serviceability check, browse/search, menu/modifiers, single-merchant basket, complete server quote, payment, status and eligible live rider location, notifications, history/reorder, review and support. Reorders revalidate prices and availability.
 
-## 2. Product Requirements Document
+**Merchant:** approval, profile/menu/photos/options/hours/sold-out controls, visible and audible new-order inbox, accept/reject with reason, 15/20/30 minute preparation estimate, preparing/ready commands, history and basic sales metrics. Browser audio needs an explicit “Enable order alerts” action; push and inbox reconciliation cover missed notifications. No routine phone dispatch.
 
-### Goal
+**Rider:** approval, explicit availability, fresh location/zone eligibility, expiring offers with pickup distance, delivery area, trip estimate and earning snapshot; accept/decline; navigation; arrival and order-number verification; pickup; route to customer; PIN or approved proof; restricted handoff refusal; earnings/history. Precise customer address appears only after assignment; customer sees rider location only during an active delivery.
 
-Build a production-ready MVP that allows customers to browse approved local businesses, place delivery orders, track status, and receive orders delivered by approved riders while merchants and admins manage operations.
+**Admin:** approval/suspension, customer and order operations, versioned zone/fee/commission/earning configuration, assignment/reassignment, cancellation/refund/dispute workflows, promotions, support, reports and immutable audit history.
 
-### Primary Users
+Pilot targets (to validate in staging): no duplicate charges or assignments; API p95 below 500 ms for ordinary reads at 50 concurrent clients; live status under 5 seconds when connected; alert on unacknowledged merchant orders after 2 minutes; alert when dispatch search exceeds 5 minutes. Measure acceptance time, rider wait, delivered/failed/cancelled rates, support volume and contribution per order. No invented customer ratings or delivery guarantees.
 
-- Customer: browses, orders, pays and tracks delivery.
-- Merchant: manages menu and handles incoming orders.
-- Rider: accepts delivery jobs and completes handoff.
-- Admin: approves participants, configures operations and resolves issues.
+## 3. Journeys
 
-### MVP Outcomes
+| Actor | Happy journey | Recovery |
+|---|---|---|
+| Customer | Address → merchants → menu/options → basket → authoritative quote → payment → timeline → PIN handoff → review | Outside zone: explain; sold out/price change: reconfirm; payment timeout: retrieve same order; cancellation/refund: show separate financial progress |
+| Merchant | Enable alerts → new-order modal with number/items/options/notes/totals → accept with ETA → preparing → ready → rider verifies collection | Reject with reason; reconnect reloads open orders; early readiness is recorded even without a rider; overdue orders notify admin |
+| Rider | Approved → online → offer → accept → navigate → arrived → verify number → picked up → out for delivery → PIN → earnings | Expired/lost offer returns conflict; location stale pauses offers; invalid PIN is rate-limited; failed handoff opens support process |
+| Admin | Monitor → resolve approval queues → configure zone/rules → inspect event timeline → intervene → reconcile | Reassignment revokes old access/offers atomically; no reassignment after pickup without supervised incident process; refunds reconcile provider results |
 
-- Customers can place valid orders within supported delivery zones.
-- Merchants can accept or reject incoming orders and update preparation status.
-- Admins can assign or reassign riders and inspect order history.
-- Riders can go online, accept jobs, confirm pickup and confirm delivery.
-- Order state transitions are strict, auditable and visible.
-- Zones and fees are configurable without code changes.
+## 4. MVP versus future
 
-### Non-Goals For MVP
+MVP release includes all four roles, responsive customer/merchant/admin web, Expo customer/rider apps, one live payment gateway, refunds, basic deterministic dispatch, single active rider delivery, PIN, retriable notifications, audit trails, config editing, support, reviews, basic reports and approved ordinary goods. Customer mobile and rider mobile are separate deployable apps.
 
-- Multi-town expansion.
-- Advanced rider batching.
-- Alcohol enablement.
-- Merchant ads and promoted listings.
-- Full loyalty system.
-- Complex subscription tooling.
+Future: multi-town routing, rider batching, scheduled orders, loyalty/wallet, subscriptions, advanced analytics, richer promotions, multilingual content after translation review, restricted categories after compliance approval. Increment 1 implements only public catalogue, local basket and order-domain rules; it cannot take payments or live orders.
 
-## 3. User Roles And Journeys
-
-### Customer Journey
-
-1. Sign up or log in.
-2. Add or select delivery address.
-3. Browse categories and merchants available for that address.
-4. View menu and item options.
-5. Add items to cart.
-6. Review fees, address, contact details and payment method.
-7. Place order.
-8. Track order timeline from placed to delivered.
-9. Rate order and request support if needed.
-
-### Merchant Journey
-
-1. Merchant applies or is invited.
-2. Admin verifies and approves merchant.
-3. Merchant configures profile, hours, categories and menu items.
-4. Merchant receives live incoming order.
-5. Merchant accepts/rejects and sets estimated preparation time.
-6. Merchant marks order ready for pickup.
-7. Merchant reviews completed orders and basic analytics.
-
-### Rider Journey
-
-1. Rider signs up and submits onboarding details.
-2. Admin approves rider.
-3. Rider goes online.
-4. Rider receives delivery offer.
-5. Rider accepts job.
-6. Rider navigates to merchant and confirms pickup.
-7. Rider navigates to customer and confirms delivery with proof.
-8. Rider views earnings and delivery history.
-
-### Admin Journey
-
-1. Admin reviews platform KPIs.
-2. Admin approves merchants and riders.
-3. Admin configures zones, fees, commissions and promotions.
-4. Admin monitors active orders.
-5. Admin manually reassigns riders when needed.
-6. Admin handles refunds, disputes and support tickets.
-7. Admin reviews reports and audit events.
-
-## 4. MVP Vs Future Scope
-
-### MVP
-
-- Authentication and role-based access.
-- Customer browsing, cart, checkout and tracking.
-- Merchant onboarding, profile, hours and menu management.
-- Merchant live order workflow.
-- Rider online status, job offers, pickup and delivery confirmation.
-- Admin users, merchants, riders, orders, zones, fees and reports.
-- Configurable delivery zones and fee rules.
-- Strict order state machine.
-- Seed data for eXobho pilot.
-- Dockerized local development.
-- Tests for critical API and state-machine behavior.
-
-### Future
-
-- Scheduled orders.
-- Loyalty and wallet.
-- Smart dispatch and batching.
-- Merchant ads and promoted placement.
-- Multi-town marketplace operations.
-- Advanced merchant analytics.
-- Public business APIs.
-- Age-restricted item workflows after legal readiness.
-- Staff permissions inside merchant accounts.
-
-## 5. System Architecture Diagram
+## 5. Architecture
 
 ```mermaid
-flowchart LR
-  CustomerWeb[Customer Web<br/>Next.js]
-  MerchantWeb[Merchant Portal<br/>Next.js]
-  AdminWeb[Admin Dashboard<br/>Next.js]
-  CustomerMobile[Customer Mobile<br/>Expo]
-  RiderMobile[Rider App<br/>Expo]
-
-  API[Backend API<br/>Java 21 Spring Boot]
-  DB[(PostgreSQL)]
-  Redis[(Redis / Queue)]
-  Storage[S3-compatible Storage]
-  Maps[Maps Provider Adapter]
-  Payments[Payment Provider Adapter]
-  Notify[Push / SMS / Email Adapters]
-
-  CustomerWeb --> API
-  MerchantWeb --> API
-  AdminWeb --> API
-  CustomerMobile --> API
-  RiderMobile --> API
-  API --> DB
-  API --> Redis
-  API --> Storage
-  API --> Maps
-  API --> Payments
-  API --> Notify
+flowchart TB
+  W[Next.js customer / merchant PWA / admin] -->|REST commands + SSE events| API
+  C[Expo customer iOS / Android] -->|REST + SSE when foreground| API
+  R[Expo rider iOS / Android] -->|REST + location updates| API
+  API[Java 21 Spring Boot modular monolith] --> DB[(PostgreSQL / Flyway)]
+  API --> S3[S3-compatible private document / public image storage]
+  API --> MAP[Mapping port: Google Maps or Mapbox]
+  API --> PAY[Payment port: selected South African gateway]
+  DB --> JOB[Durable outbox / dispatch worker]
+  JOB --> PUSH[Push / email / SMS ports]
+  PUSH --> C
+  PUSH --> R
+  JOB --> API
+  JOB -. optional cache / rate limit .-> REDIS[(Redis)]
 ```
 
-## 6. Database ERD
+Modules: identity, catalogue, pricing, ordering, payments, dispatch, delivery, notification, support, administration. Database transactions are the correctness boundary; Redis does not decide assignment. Workers claim durable jobs with leases. Provider network calls run outside transactions and reconcile idempotently. Deploy API/worker from the same artifact, scaling separately later. Web proxies public reads to the API; secrets never reach browser bundles.
+
+## 6. ERD
 
 ```mermaid
 erDiagram
+  User ||--o{ UserRole : granted
+  Role ||--o{ UserRole : defines
   User ||--o| CustomerProfile : has
-  User ||--o| Rider : has
   User ||--o{ Address : owns
-  User ||--o{ Notification : receives
-  User ||--o{ SupportTicket : opens
-  Merchant ||--o{ MerchantDocument : has
-  Merchant ||--o{ BusinessHours : defines
-  Merchant ||--o{ Category : owns
+  User ||--o{ Merchant : operates
+  Merchant ||--o{ MerchantDocument : submits
+  Merchant ||--o{ BusinessHours : sets
+  Merchant ||--o{ Category : groups
   Category ||--o{ MenuItem : contains
   MenuItem ||--o{ MenuItemOption : offers
   CustomerProfile ||--o{ Cart : owns
   Cart ||--o{ CartItem : contains
-  MenuItem ||--o{ CartItem : referenced_by
+  MenuItem ||--o{ CartItem : references
+  CartItem ||--o{ CartItemOption : selects
+  MenuItemOption ||--o{ CartItemOption : chosen
   CustomerProfile ||--o{ Order : places
+  Address ||--o{ Order : snapshots
   Merchant ||--o{ Order : receives
-  Order ||--o{ OrderItem : contains
-  MenuItem ||--o{ OrderItem : ordered_as
-  Order ||--o{ Payment : paid_by
-  Payment ||--o{ Refund : may_have
+  DeliveryZone ||--o{ Merchant : serves
+  DeliveryZone ||--o{ PricingRule : versions
+  PricingRule ||--o{ Order : snapshots
+  Order ||--|{ OrderItem : snapshots
+  OrderItem ||--o{ OrderItemOption : snapshots
+  Order ||--o{ OrderEvent : records
+  Order ||--o| Delivery : fulfilled
+  User ||--o| Rider : has
   Rider ||--o{ RiderLocation : reports
-  Rider ||--o{ Delivery : handles
-  Order ||--o| Delivery : fulfilled_by
-  DeliveryZone ||--o{ Merchant : covers
+  Rider }o--o{ DeliveryZone : eligible
+  Rider ||--o{ RiderOffer : receives
+  Delivery ||--o{ RiderOffer : offers
+  Rider ||--o{ Delivery : assigned
+  Order ||--o{ Payment : attempts
+  Payment ||--o{ Refund : reconciles
   Promotion ||--o{ Order : discounts
-  Order ||--o{ Review : reviewed_by
-  Order ||--o{ AuditEvent : records
-  SupportTicket }o--o| Order : may_reference
+  Order ||--o{ Review : receives
+  User ||--o{ Notification : receives
+  OrderEvent ||--o{ Notification : triggers
+  User ||--o{ SupportTicket : opens
+  Order ||--o{ SupportTicket : concerns
+  User ||--o{ AuditEvent : acts
 ```
 
-Core tables use UUID primary keys, `created_at`, `updated_at`, foreign keys, indexes on lookup fields, and optimistic locking where concurrent order/rider updates matter.
+Target ERD includes later migrations; V1 is not the complete target schema. UUID PKs, FKs and timestamps on mutable entities; events are immutable with occurrence time and sequence. Index merchant/status, customer/date, offer/status/expiry, rider/location time, outbox/next attempt. Store order address, names, quantities, option prices, fees, discounts, commissions and earnings as snapshots. Unique customer/idempotency key plus request hash; unique provider event/reference and command keys. Partial unique active-delivery index per rider for pilot capacity of one; lock delivery AND rider records in consistent order. Restrict hard deletion of financial/order records. Add role junction, pricing versions and snapshot/options tables in their feature migrations.
 
-## 7. API Endpoint Plan
+## 7. Order state machine
 
-Base path: `/api/v1`
+```mermaid
+stateDiagram-v2
+  [*] --> CREATED
+  CREATED --> PAYMENT_PENDING: provider required
+  CREATED --> PLACED: enabled non-provider payment
+  PAYMENT_PENDING --> PLACED: verified payment result
+  PLACED --> MERCHANT_ACCEPTED: merchant accepts with ETA
+  MERCHANT_ACCEPTED --> PREPARING: merchant starts
+  PREPARING --> RIDER_SEARCHING: scheduled dispatch lead time
+  RIDER_SEARCHING --> RIDER_ASSIGNED: first valid offer acceptance
+  RIDER_ASSIGNED --> READY_FOR_PICKUP: kitchen readiness recorded
+  READY_FOR_PICKUP --> RIDER_AT_PICKUP: assigned rider arrival recorded
+  RIDER_AT_PICKUP --> PICKED_UP: order number verified
+  PICKED_UP --> OUT_FOR_DELIVERY: rider departs
+  OUT_FOR_DELIVERY --> DELIVERED: valid PIN / approved proof
+  PLACED --> REJECTED: merchant reason
+  CREATED --> CANCELLED
+  PAYMENT_PENDING --> CANCELLED
+  PLACED --> CANCELLED
+  MERCHANT_ACCEPTED --> CANCELLED: admin only
+  PREPARING --> CANCELLED: admin only
+  RIDER_SEARCHING --> CANCELLED: admin only
+  RIDER_ASSIGNED --> CANCELLED: admin only
+  READY_FOR_PICKUP --> CANCELLED: admin only
+  RIDER_AT_PICKUP --> CANCELLED: admin only
+  PICKED_UP --> DELIVERY_FAILED: rider / admin reason
+  OUT_FOR_DELIVERY --> DELIVERY_FAILED: rider / admin reason
+  REJECTED --> REFUND_PENDING: captured payment
+  CANCELLED --> REFUND_PENDING: captured payment
+  DELIVERY_FAILED --> REFUND_PENDING: approved financial resolution
+  DELIVERED --> REFUND_PENDING: approved dispute
+  REFUND_PENDING --> REFUNDED: verified gateway result
+```
 
-### Auth
+REFUND is a financial workflow represented by REFUND_PENDING/REFUNDED, not a claim that money has moved. Failed refund retries remain pending, with attempt events and escalation. Only captured funds can be refunded, bounded by captured amount less prior refunds. Payment failure stays pending for a bounded retry period or cancels; late successful payment on a cancelled order triggers reconciliation/refund, never resurrects fulfilment.
 
-- `POST /auth/register`
-- `POST /auth/login`
-- `POST /auth/refresh`
-- `POST /auth/logout`
-- `GET /me`
+Kitchen readiness and rider arrival can happen out of sequence in real life: store `kitchen_ready_at` and `rider_arrived_at` as orthogonal facts/events. Do not force a merchant to wait for assignment to report readiness. Once prerequisites hold, the command service advances canonical states in order, writing each event. The pure state machine checks graph and actor role; command services must additionally validate ownership, payment, ETA, assignment, snapshots and proof under transaction. SYSTEM means an internal trusted worker, never a role accepted from a client.
 
-### Customer
+Customers cancel before merchant acceptance. Merchants reject PLACED only. Admin cancels before pickup with a reason; after pickup use delivery failure/incident handling. Terminal states cannot be reopened. Every accepted command stores OrderEvent, AuditEvent and notification outbox entry atomically. Duplicate command retries return the original result without another event.
 
-- `GET /customer/home`
-- `GET /customer/merchants`
-- `GET /customer/merchants/{merchantId}`
-- `GET /customer/search`
-- `GET /customer/cart`
-- `POST /customer/cart/items`
-- `PATCH /customer/cart/items/{itemId}`
-- `DELETE /customer/cart/items/{itemId}`
-- `POST /customer/orders`
-- `GET /customer/orders`
-- `GET /customer/orders/{orderId}`
-- `POST /customer/orders/{orderId}/reviews`
-- `POST /customer/support-tickets`
+## 8. Dispatch sequence
 
-### Merchant
+```mermaid
+sequenceDiagram
+  participant M as Merchant
+  participant A as API
+  participant D as PostgreSQL
+  participant W as Dispatch worker
+  participant R as Eligible rider
+  participant N as Notification worker
+  M->>A: Accept(order, prepMinutes, commandKey)
+  A->>D: Lock order; accept; store ready ETA + due job + events
+  A-->>M: Canonical state + version
+  W->>D: Claim job at max(now, ETA - lead time)
+  W->>D: Rank approved online zone riders with fresh location and capacity
+  W->>D: Create expiring offer + earning snapshot + outbox
+  N->>D: Claim outbox item
+  N-->>R: Push offer ID (hint to fetch)
+  R->>A: Accept(offer ID, command key)
+  A->>D: Lock delivery and rider; recheck eligibility, expiry and capacity
+  alt No winner and offer valid
+    A->>D: Assign; revoke competing offers; write events; commit
+    A-->>R: Assignment with pickup navigation
+  else Expired / already assigned / unavailable
+    A-->>R: 409 conflict; refresh offers
+  end
+  W->>D: Expiry: advance candidate; widen permitted radius
+  W->>D: No candidate / search deadline: admin alert + durable retry
+```
 
-- `GET /merchant/profile`
-- `PATCH /merchant/profile`
-- `GET /merchant/menu/categories`
-- `POST /merchant/menu/categories`
-- `POST /merchant/menu/items`
-- `PATCH /merchant/menu/items/{itemId}`
-- `PATCH /merchant/menu/items/{itemId}/availability`
-- `GET /merchant/orders/live`
-- `POST /merchant/orders/{orderId}/accept`
-- `POST /merchant/orders/{orderId}/reject`
-- `POST /merchant/orders/{orderId}/ready`
-- `GET /merchant/analytics/summary`
+Initial policy: sequential 30-second offers, configurable 10-minute lead, location age ≤90 seconds and one active delivery per rider. These are configurable pilot hypotheses. Widen pickup search only within approved rider service zones; do not widen customer serviceability silently. Tie-break by distance then stable rider ID; workload becomes a score when capacity expands. Recheck eligibility during acceptance. Reassignment locks the same records, releases old rider, expires offers, increments assignment version and invalidates old rider access. Out-of-order jobs check current state/version before doing anything.
 
-### Rider
+## 9. REST, live events and notification API plan
 
-- `PATCH /rider/availability`
-- `PATCH /rider/location`
-- `GET /rider/offers`
-- `POST /rider/offers/{deliveryId}/accept`
-- `POST /rider/offers/{deliveryId}/decline`
-- `POST /rider/deliveries/{deliveryId}/pickup`
-- `POST /rider/deliveries/{deliveryId}/complete`
-- `GET /rider/earnings`
+All `/api/v1`; UUID identifiers; RFC 9457 problem details; UTC ISO timestamps; integer ZAR cents; cursor pagination. Session identity derives actor/ownership. Mutations use Idempotency-Key where effects can duplicate; same key/different normalized payload →409. If-Match order/config version prevents stale updates. Validation →400/422; unauthenticated →401; unauthorized →403 or concealed 404; stale/invalid transition →409; rate limit →429.
 
-### Admin
+| Domain | Commands and queries |
+|---|---|
+| Identity | POST auth/register, login, refresh, logout; GET me; CRUD customer/addresses |
+| Public catalogue | GET merchants?query=&category=&zoneId=; GET merchants/{id}/menu (increment 1) |
+| Basket/quote | GET/PUT customer/cart; POST customer/quotes using item/option IDs, quantity and address ID only |
+| Orders | POST customer/orders with quote ID + idempotency key; GET customer/orders and /{id}; POST /{id}/cancel, reorder, reviews |
+| Merchant | GET merchant/orders?status=; POST merchant/orders/{id}/accept {prepMinutes}, reject {reason}, preparing, ready; CRUD profile, menu, hours; GET analytics |
+| Rider | PATCH rider/availability, location; GET offers; POST offers/{offerId}/accept, decline; GET deliveries/{id}; POST /arrived, pickup {orderNumber}, depart, complete {pin}, fail {reason}; GET earnings/history |
+| Admin | GET overview/users/orders/merchants/riders; POST approvals/suspensions; CRUD zones, pricing, promotions; POST orders/{id}/assign, reassign, cancel, refunds; GET reports/audit; support ticket resolution |
+| Providers | POST webhooks/payments/{provider}, verify raw-body signature and unique provider event ID; never trust browser redirect |
 
-- `GET /admin/overview`
-- `GET /admin/users`
-- `GET /admin/merchants`
-- `POST /admin/merchants/{merchantId}/approve`
-- `POST /admin/merchants/{merchantId}/suspend`
-- `GET /admin/riders`
-- `POST /admin/riders/{riderId}/approve`
-- `POST /admin/riders/{riderId}/suspend`
-- `GET /admin/orders`
-- `POST /admin/orders/{orderId}/assign-rider`
-- `POST /admin/orders/{orderId}/cancel`
-- `GET /admin/zones`
-- `POST /admin/zones`
-- `PATCH /admin/zones/{zoneId}`
-- `GET /admin/fees`
-- `PATCH /admin/fees`
-- `GET /admin/audit-events`
-- `GET /admin/reports/orders`
+SSE: GET orders/{id}/events with authenticated participant authorization and Last-Event-ID replay; event `{id, type, orderId, version, occurredAt, data}`. Named events `order.updated`, `offer.created`, `offer.expired`, `delivery.location`, `notification.created`. Merchant inbox and rider offer streams are separately scoped. Reconnect replays durable order events or signals `resync` if retention expired; clients fetch authoritative snapshots and ignore older versions. Location updates are ephemeral, throttled and show “last updated”; never fabricate motion. Polling fallback when SSE is unavailable. WebSocket can replace high-frequency location transport later without changing command semantics.
 
-## 8. Folder And Repository Structure
+Push contains minimal IDs, no sensitive address/PIN. Outbox delivers at least once with exponential backoff/jitter, unique delivery key, attempts, next-attempt time and dead-letter/admin escalation. Devices deduplicate notification IDs; opening fetches current state. Delivery receipts are not order transition evidence. Merchant sound/vibration requires platform permission; visible persistent inbox remains usable without it.
+
+Provider ports: PaymentProvider.createIntent / verifyWebhook / fetchStatus / refund; MappingProvider.geocode / serviceable / routeEstimate; ObjectStorage.signedUpload / signedDownload; NotificationProvider.send. Sandbox and real credentials are separate; hosted gateway checkout avoids card handling in Duze.
+
+## 10. Repository structure
 
 ```text
-duze/
-  apps/
-    web/
-      customer/
-      merchant/
-      admin/
-    mobile/
-      customer/
-      rider/
-  services/
-    api/
-      src/main/java/
-      src/main/resources/db/migration/
-      src/test/java/
-  packages/
-    ui/
-    config/
-    types/
-  infra/
-    docker/
-    compose/
-    ci/
-  docs/
-    PROJECT_PLAN.md
-    api/
-    architecture/
-  seed/
-    exobho/
+apps/web/                 Next.js App Router; customer, later merchant/admin routes
+apps/mobile/customer/     planned Expo customer application
+apps/mobile/rider/        planned Expo rider application
+services/api/             Spring Boot modules and Flyway migrations
+packages/contracts/       planned generated OpenAPI TypeScript client
+packages/design-tokens/   planned shared web/native tokens
+infra/compose/            local Postgres, Redis, API and web
+.github/workflows/        automated verification
+seed/exobho/              development-only deterministic seed
+site/                     original static concept and source artwork
+ docs/PROJECT_PLAN.md      this complete blueprint
+ docs/api/                implemented OpenAPI contract
 ```
 
-Initial implementation can use a monorepo with separate deployable apps and one Spring Boot API.
+## 11. UI system and wireframes
 
-## 9. UI Design System And Wireframes
+Reference interpretation: deep green framing, cream canvas, orange primary actions, photographic food/local delivery imagery, rounded merchant cards, compact status chips. Use Duze's own layouts and typography. No competitor marks, invented ratings or alcohol promotions. Sample catalogue badges are explicit.
 
-### Design Tokens
-
-- Background: warm cream `#FFF7EA`
-- Surface: soft white `#FFFFFF`
-- Primary: fresh green `#0F7A4A`
-- Primary dark: deep green `#075236`
-- Accent: warm orange `#F97316`
-- Text: deep charcoal `#20231F`
-- Muted text: `#6B6F68`
-- Border: `#E8DDCC`
-- Radius: 8px for cards and controls
-- Typography: mobile-first, high contrast, no negative letter spacing
-
-### Customer Home
+Tokens: forest #073C2F, green #125641, cream #FFF9EF, orange #FF781F, charcoal #18372D, muted #586B62, border #DFE6DD. Orange actions use dark text; white-on-orange small text is avoided. System sans font (no blocking font downloads); 4/8/12/16/24/32/48 spacing; 16–24px cards; ≥44px targets. Keyboard focus, semantic headings, visible labels, reduced-motion support, text alternatives and dialog focus restoration. Local responsive compressed imagery, lazy loading below fold, compact JSON, no auto-playing media. Target WCAG 2.2 AA, including 200% zoom, screen-reader and keyboard review before launch.
 
 ```text
-+------------------------------------------------+
-| Location: eXobho Central                 Cart  |
-| [Search local food, shisanyama, stores...]     |
-| Food | Shisanyama | Stores | Specials          |
-| Featured near you                              |
-| [Merchant image] Marley's Shisanyama 25-35 min |
-| [Merchant image] Town Grill         20-30 min   |
-+------------------------------------------------+
+Customer desktop
+[ Duze / Local favourites ] [ eXobho pilot ]                  [ Basket (2) ]
+[ Home • Restaurants • How it works ]
+[ LOCAL FAVOURITES           | local delivery photograph                 ]
+[ A little local.            |                                           ]
+[ A lot to love.             |                                           ]
+[ Search dishes or kitchens___________________ ] [ Browse kitchens ]
+[ All kitchens ] [ Shisanyama ] [ Takeaways ] [ Stores ]
+[ Neighbourhood favourites                         Sample catalogue ]
+[ Photo / kitchen / prep ] [ Photo / kitchen / prep ] [ Photo / kitchen ]
+
+Customer mobile
+[ Duze                Basket ]
+[ eXobho · pilot catalogue   ]
+[ Hero + Browse kitchens    ]
+[ Search___________________ ]
+[ horizontal category chips ]
+[ Merchant cards            ]
+[ Home | Browse | Basket    ]
+
+Menu → options → basket → checkout
+[ Back / Kitchen / prep estimate ]
+[ Item name / description / price / Add ]
+[ Options: required group, max choices / note / quantity / Add ]
+[ Basket lines / remove / subtotal / fees quoted at checkout ]
+[ Address + landmark / subtotal / delivery / service / discount / total ]
+[ Payment method / Confirm Rxxx ]
+
+Tracking/history/profile
+[ Status and last update / ETA range / accessible text timeline ]
+[ Map when permitted / Rider / PIN private to customer / Support ]
+[ Past orders / Reorder reprices ] [ Profile / Addresses / Preferences ]
+
+Merchant tablet
+[ Duze Business | Live orders | Menu | Hours | Analytics ]
+[ Enable sound ] [ Connection status ]
+[ NEW #1042 / items+modifiers+notes / totals / elapsed time ]
+[ Reject + reason ] [ 15 / 20 / 30 min ] [ Accept ]
+[ Preparing column ] [ Ready column ] [ Rider assignment / ETA ]
+
+Rider phone
+[ Duze Rider                    Online toggle ]
+[ Offer expires 00:24 / pickup kitchen / pickup distance ]
+[ Delivery area / trip km+minutes / You earn Rxx ]
+[ Decline ] [ Accept ]
+[ Navigate / Arrived / Verify # / Picked up / Start delivery ]
+[ Customer handoff / PIN / Complete / Report problem ]
+[ Earnings / completed deliveries ]
+
+Admin desktop
+[ Orders | Merchants | Riders | Zones & fees | Support | Reports ]
+[ Today orders / fulfilment / unassigned / exceptions ]
+[ Filterable orders / event drawer / assignment / reason-required action ]
+[ Config version / effective time / fee preview / Save ]
 ```
 
-### Merchant Page
+Empty, loading, disconnected, error and denied states are required for each data screen. Never display a fake successful checkout, approval, payout or tracking map. Increment 1 basket explicitly stops before checkout.
 
-```text
-+------------------------------------------------+
-| [Food photo hero]                              |
-| Marley's Shisanyama   Open   25-35 min         |
-| Grill Plates | Wings | Sides | Drinks          |
-| [Item photo] Grill Plate      R89   [+]         |
-| [Item photo] Wings Combo      R75   [+]         |
-+------------------------------------------------+
-```
+## 12. Security and compliance release checklist
 
-### Tracking
+- [ ] Authentication, adaptive password hashing, rotating refresh tokens, secure HTTP-only web cookies, mobile secure storage; MFA for privileged users.
+- [ ] RBAC plus tenant/ownership checks; suspension revokes sessions/offers; no client-provided actor role; CORS allowlist, CSRF protection for cookie mutations, rate limiting and request size limits.
+- [ ] Server prices, quote expiry, stock/options validation, atomic order placement/idempotency, signed payment webhooks, bounded refunds, immutable snapshots and event/outbox transactions.
+- [ ] Lock-based assignment integration race tests, proof attempt limits, hashed PIN, assignment-scoped address/location access, retention and audit redaction.
+- [ ] Private S3 documents, signed expiring access, file type/size validation and malware scanning; no secrets or payment card data in logs.
+- [ ] POPIA review: lawful processing purpose, minimal personal data, transparent notice, data subject access/correction process, retention/deletion schedule, operator agreements and breach response. Verify obligations with counsel before pilot. Source: [Protection of Personal Information Act](https://www.justice.gov.za/legislation/acts/2013-004.pdf).
+- [ ] Restricted-category flag defaults off. Enable only after jurisdiction-specific licensing/legal review and approved merchants. Require 18+ confirmation and configurable ID check at handoff; age confirmation alone is insufficient. Rider refusal creates incident/return and financial-resolution events. Store verification outcome, not unnecessary ID images.
+- [ ] Threat model, dependency/secret scan, TLS, least-privilege database users, managed secrets, restore-tested backups, staging isolation and incident/on-call runbook.
 
-```text
-+------------------------------------------------+
-| [Map / route area]                              |
-| Order status: Rider is on the way               |
-| Placed -> Accepted -> Preparing -> Picked up    |
-| Rider details when assigned                     |
-| [Contact support]                              |
-+------------------------------------------------+
-```
+These are release gates, not a declaration of legal compliance. Platform implementation references: [Next.js docs](https://nextjs.org/docs), [Expo monorepos](https://docs.expo.dev/guides/monorepos/).
 
-### Merchant Live Orders
+## 13. Acceptance criteria
 
-```text
-+------------------------------------------------+
-| Live Orders                  New 3 Preparing 2  |
-| #1042  Marley's  R184  2 items                  |
-| [Accept 25 min] [Reject]                        |
-| Preparing                                      |
-| #1040  Mark ready                              |
-+------------------------------------------------+
-```
+| Area | Verifiable condition |
+|---|---|
+| Increment 1 catalogue | Approved merchants in active zones only; optional query/category/zone filter; suspended/unknown merchant menu returns 404; restricted items excluded; API outage has retry UI; desktop/mobile browsing and basket work |
+| Pricing | Tampered client totals ignored; integer cents calculated from database and versioned rules; changed/sold-out options require a new quote; outside-zone address rejected |
+| Idempotency | 20 concurrent identical placement/payment requests produce one business effect; different payload under same key returns 409 |
+| Orders | Every legal edge and role tested; skipped/reversed/terminal transitions rejected; unauthorized tenant cannot mutate; every accepted mutation has event/audit/outbox in same commit |
+| Merchant | Accept requires allowed ETA; alert contains complete snapshots; early-ready fact retained; reconnect restores unseen orders |
+| Dispatch | Offline/suspended/stale/out-of-zone/full riders never win; 20 simultaneous offer accepts yield one winner; same rider cannot win two orders; expired offers fail; lead-time search precedes readiness; no-rider alert and reassignment tested |
+| Delivery | Assigned rider verifies number; handoff requires valid rate-limited PIN or authorized proof; failures never mark delivered; revoked rider cannot access/update delivery |
+| Notifications | Provider failure retries; duplicate and out-of-order messages do not regress client state; reconnection replays or resyncs |
+| Admin | Configuration changes apply without deployment and preserve old order economics; reason/actor/version audited; partial refund cannot exceed remaining capture |
+| Mobile/accessibility | Customer/rider Android and iOS device tests, foreground/background/offline behavior, denied permissions, keyboard/screen reader/zoom and slow network checks |
+| Release | Fresh migrations + deterministic seed + CI pass; backup restored; live gateway reconciliation in staging; pilot operational rehearsal and approval |
 
-### Rider App
+## 14. Sprint plan
 
-```text
-+------------------------------------------------+
-| Online toggle                                  |
-| New offer                                      |
-| Pickup: Marley's Shisanyama                    |
-| Drop-off: eXobho Central                       |
-| Distance: 3.2 km  Est. earning: R32            |
-| [Accept] [Decline]                             |
-+------------------------------------------------+
-```
+Each sprint ends with runnable code, tests, migrations where needed, Docker/README updates and a demo. Estimates are planning units, not delivery promises.
 
-### Admin Dashboard
+1. **Blueprint and browse foundation (current):** all 14 design sections, Next.js customer home/menu/basket, Spring Boot read API, corrected domain graph, SQL migration, OpenAPI, CI.
+2. **Identity and catalogue operations:** auth/RBAC/ownership, merchant/rider approvals, menu/options/hours, uploads, admin basics, secure sessions.
+3. **Quote and order:** address serviceability, configuration versions, authoritative quote, snapshots, idempotent placement, merchant alert inbox/ETA, transactional events/outbox.
+4. **Payment:** sandbox provider port and chosen gateway, signed webhooks, payment retries, cancellation/refund reconciliation, no live activation until verified.
+5. **Dispatch and rider:** due-job worker, ranking, leases/expiry, concurrency tests, manual reassignment, Expo rider availability/offer/pickup/PIN/earnings.
+6. **Customer mobile and live tracking:** Expo catalogue/checkout/history/profile, push tokens and permissions, SSE recovery, mapping abstraction, location privacy.
+7. **Operational completeness:** support/disputes, reviews/reorder, promotions/reports, analytics, merchant PWA resilience, config administration.
+8. **Staging and pilot:** load/security/accessibility/device testing, CI/CD staging deployment with production approval gate, backup restoration, reconciliation, merchant/rider training and launch checklist.
 
-```text
-+------------------------------------------------+
-| KPIs: Orders | GMV | Avg delivery | Cancels     |
-| Active orders table                             |
-| Merchant approvals                              |
-| Rider approvals                                 |
-| Zone and fee controls                           |
-+------------------------------------------------+
-```
-
-## 10. Security And Compliance Checklist
-
-- Use server-side validation for all commands and DTOs.
-- Hash passwords with a modern adaptive algorithm.
-- Use short-lived access tokens and refresh-token rotation or secure sessions.
-- Enforce RBAC on every route.
-- Rate-limit auth, checkout and state-changing endpoints.
-- Use idempotency keys for order creation and payment operations.
-- Store secrets outside source control.
-- Avoid logging secrets, tokens, full card data or unnecessary personal data.
-- Keep audit events for approval, order state changes, refunds, dispatch and admin actions.
-- Validate zone eligibility server-side.
-- Use optimistic or pessimistic locking for rider assignment and order transitions.
-- Keep age-restricted product configuration disabled until compliance is approved.
-- Support age verification and refusal workflow before enabling restricted categories.
-- Document POPIA privacy obligations before launch.
-- Run dependency scanning and OWASP checks in CI.
-
-## 11. Sprint-By-Sprint Implementation Plan
-
-### Sprint 1: Product Foundation
-
-- Confirm pilot zone, fees, merchant list and user journeys.
-- Create wireframes and design tokens.
-- Initialize monorepo, formatting, linting and Docker Compose.
-
-### Sprint 2: Backend Foundation
-
-- Spring Boot API, PostgreSQL, migrations, auth and RBAC.
-- Core user, merchant, rider and audit tables.
-- Seed pilot data.
-
-### Sprint 3: Merchant And Menu
-
-- Merchant profile, hours, categories and menu CRUD.
-- Image placeholder/storage abstraction.
-- Merchant approval flow.
-
-### Sprint 4: Customer Browse And Cart
-
-- Customer web home, merchant list, merchant detail and cart.
-- Address and zone eligibility checks.
-- Fee preview.
-
-### Sprint 5: Checkout And Merchant Orders
-
-- Order creation, state machine and idempotency.
-- Merchant live orders, accept/reject and prep status.
-- Order timeline API.
-
-### Sprint 6: Rider And Dispatch
-
-- Rider availability and location.
-- Dispatch assignment rules.
-- Rider offer, pickup and delivery confirmation.
-- Admin reassignment.
-
-### Sprint 7: Tracking, Notifications And Admin Ops
-
-- Customer tracking map/status.
-- Notification adapter.
-- Admin overview, order management, zones and fees.
-
-### Sprint 8: Payments, QA And Pilot Readiness
-
-- Payment abstraction and selected gateway/manual mode.
-- Refund flow.
-- Security review, integration tests and pilot runbook.
-
-## 12. Acceptance Criteria
-
-### Authentication And Roles
-
-- Users can register, log in, refresh sessions and log out.
-- Protected endpoints reject unauthenticated requests.
-- Role-specific endpoints reject users without the required role.
-
-### Merchant Management
-
-- Admin can approve and suspend merchants.
-- Approved merchants can edit profile, hours and menu.
-- Customers only see approved, active merchants available in their zone.
-
-### Cart And Checkout
-
-- Customers can add valid available items from one merchant.
-- Cart totals include item subtotal, delivery fee, service fee and discounts.
-- Checkout fails when address is outside the delivery zone.
-- Duplicate checkout submissions do not create duplicate orders.
-
-### Order State Machine
-
-- Only valid state transitions are accepted.
-- Every state change creates an audit event.
-- Cancellation rules are enforced based on state and actor.
-
-### Merchant Orders
-
-- Merchant can accept, reject and mark orders ready.
-- Merchant cannot update orders belonging to another merchant.
-- Customer timeline reflects merchant changes.
-
-### Dispatch And Rider
-
-- Only approved online riders can receive offers.
-- One active delivery cannot be assigned to multiple riders.
-- Rider can confirm pickup only after assignment.
-- Rider can complete delivery only after pickup.
-
-### Admin Operations
-
-- Admin can configure zones and fee rules.
-- Admin can manually assign or reassign riders.
-- Admin can view order history and audit events.
-
-### Payments
-
-- Payment operations use provider abstraction.
-- Payment and refund status changes are auditable.
-- Manual/cash payment is only available when enabled by admin.
-
-### Reliability And Delivery
-
-- Local development starts with Docker Compose.
-- Database migrations run from a clean database.
-- Critical backend tests pass in CI.
-- README explains setup, run, seed and test commands.
+Next slice begins only after assessing this increment's results. No production deployment, payments or app-store publication is implied by a local preview.

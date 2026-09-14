@@ -1,86 +1,64 @@
 package za.co.duze.orders;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
+import org.junit.jupiter.api.Test;
+import java.time.*;
 import java.util.UUID;
+import static org.junit.jupiter.api.Assertions.*;
+import static za.co.duze.orders.OrderStatus.*;
+import static za.co.duze.orders.ActorRole.*;
 
-public final class OrderStateMachineTest {
-    public static void main(String[] args) {
-        var test = new OrderStateMachineTest();
-        test.allowsValidOrderJourneyTransition();
-        test.rejectsImpossibleTransition();
-        test.blocksCustomerCancellationAfterPreparation();
-        test.allowsAdminCancellationBeforeDelivery();
-    }
+class OrderStateMachineTest {
+    private final Instant now = Instant.parse("2026-09-14T10:00:00Z");
+    private final OrderStateMachine machine = new OrderStateMachine(Clock.fixed(now, ZoneOffset.UTC));
+    private final UUID order = UUID.randomUUID();
 
-    void allowsValidOrderJourneyTransition() {
-        var machine = fixedMachine();
-        var orderId = UUID.randomUUID();
-
-        var event = machine.transition(orderId, OrderStatus.PLACED, OrderStatus.ACCEPTED, ActorRole.MERCHANT, "Accepted by kitchen");
-
-        assertEquals(orderId, event.orderId(), "audit event order id");
-        assertEquals(OrderStatus.PLACED, event.fromStatus(), "audit event from status");
-        assertEquals(OrderStatus.ACCEPTED, event.toStatus(), "audit event to status");
-        assertEquals(ActorRole.MERCHANT, event.actorRole(), "audit actor");
-        assertEquals(Instant.parse("2026-09-11T10:00:00Z"), event.occurredAt(), "audit timestamp");
-    }
-
-    void rejectsImpossibleTransition() {
-        var machine = fixedMachine();
-
-        assertThrows(() -> machine.transition(
-                UUID.randomUUID(),
-                OrderStatus.PLACED,
-                OrderStatus.PICKED_UP,
-                ActorRole.RIDER,
-                "Cannot skip merchant workflow"
-        ), "Cannot transition order from PLACED to PICKED_UP");
-    }
-
-    void blocksCustomerCancellationAfterPreparation() {
-        var machine = fixedMachine();
-
-        assertThrows(() -> machine.transition(
-                UUID.randomUUID(),
-                OrderStatus.PREPARING,
-                OrderStatus.CANCELLED,
-                ActorRole.CUSTOMER,
-                "Customer changed mind"
-        ), "CUSTOMER cannot cancel an order from PREPARING");
-    }
-
-    void allowsAdminCancellationBeforeDelivery() {
-        var machine = fixedMachine();
-
-        var event = machine.transition(
-                UUID.randomUUID(),
-                OrderStatus.ON_THE_WAY,
-                OrderStatus.CANCELLED,
-                ActorRole.ADMIN,
-                "Customer unreachable"
-        );
-
-        assertEquals(OrderStatus.CANCELLED, event.toStatus(), "admin cancellation status");
-    }
-
-    private OrderStateMachine fixedMachine() {
-        return new OrderStateMachine(Clock.fixed(Instant.parse("2026-09-11T10:00:00Z"), ZoneOffset.UTC));
-    }
-
-    private static void assertThrows(Runnable action, String expectedMessage) {
-        try {
-            action.run();
-            throw new AssertionError("Expected exception with message: " + expectedMessage);
-        } catch (OrderTransitionException exception) {
-            assertEquals(expectedMessage, exception.getMessage(), "exception message");
+    @Test void completeJourneyEmitsTimestampedEvents() {
+        OrderStatus[] states = {CREATED, PAYMENT_PENDING, PLACED, MERCHANT_ACCEPTED, PREPARING,
+                RIDER_SEARCHING, RIDER_ASSIGNED, READY_FOR_PICKUP, RIDER_AT_PICKUP,
+                PICKED_UP, OUT_FOR_DELIVERY, DELIVERED};
+        ActorRole[] actors = {SYSTEM, SYSTEM, MERCHANT, MERCHANT, SYSTEM, SYSTEM, MERCHANT, RIDER, RIDER, RIDER, RIDER};
+        for (int i = 0; i < actors.length; i++) {
+            var event = machine.transition(order, states[i], states[i + 1], actors[i], "verified command");
+            assertEquals(order, event.orderId());
+            assertEquals(states[i + 1], event.toStatus());
+            assertEquals(now, event.occurredAt());
+            assertNotNull(event.id());
         }
     }
-
-    private static void assertEquals(Object expected, Object actual, String label) {
-        if (!expected.equals(actual)) {
-            throw new AssertionError(label + " expected <" + expected + "> but was <" + actual + ">");
+    @Test void noProviderPaymentCanBePlacedBySystemOnly() {
+        machine.transition(order, CREATED, PLACED, SYSTEM, null);
+        assertThrows(OrderTransitionException.class, () -> machine.transition(order, CREATED, PLACED, CUSTOMER, null));
+    }
+    @Test void customersCannotAcceptAssignOrDeliver() {
+        for (var pair : new OrderStatus[][] {{PLACED, MERCHANT_ACCEPTED}, {RIDER_SEARCHING, RIDER_ASSIGNED}, {OUT_FOR_DELIVERY, DELIVERED}}) {
+            assertThrows(OrderTransitionException.class, () -> machine.transition(order, pair[0], pair[1], CUSTOMER, null));
+        }
+    }
+    @Test void cannotSkipPickupReadinessOrArrival() {
+        for (var pair : new OrderStatus[][] {{PLACED, PICKED_UP}, {RIDER_ASSIGNED, PICKED_UP}, {READY_FOR_PICKUP, PICKED_UP}}) {
+            assertThrows(OrderTransitionException.class, () -> machine.transition(order, pair[0], pair[1], RIDER, null));
+        }
+    }
+    @Test void customersCancelOnlyBeforeAcceptance() {
+        assertTrue(machine.canCancel(PLACED, CUSTOMER));
+        assertFalse(machine.canCancel(MERCHANT_ACCEPTED, CUSTOMER));
+        assertThrows(OrderTransitionException.class, () -> machine.transition(order, PREPARING, CANCELLED, CUSTOMER, "Changed mind"));
+    }
+    @Test void adminCannotCancelAfterPickup() {
+        assertFalse(machine.canCancel(PICKED_UP, ADMIN));
+        machine.transition(order, PICKED_UP, DELIVERY_FAILED, ADMIN, "Incident");
+    }
+    @Test void exceptionsNeedReasonsAndRefundNeedsSystemConfirmation() {
+        assertThrows(OrderTransitionException.class, () -> machine.transition(order, PLACED, REJECTED, MERCHANT, " "));
+        machine.transition(order, PLACED, REJECTED, MERCHANT, "Kitchen closed");
+        machine.transition(order, REJECTED, REFUND_PENDING, SYSTEM, "Captured payment");
+        assertThrows(OrderTransitionException.class, () -> machine.transition(order, REFUND_PENDING, REFUNDED, ADMIN, "Unverified"));
+        machine.transition(order, REFUND_PENDING, REFUNDED, SYSTEM, "Provider verified");
+    }
+    @Test void refundedIsTerminalAndSelfTransitionsAreRejected() {
+        for (var state : OrderStatus.values()) {
+            assertFalse(machine.canTransition(REFUNDED, state));
+            assertFalse(machine.canTransition(state, state));
         }
     }
 }

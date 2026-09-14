@@ -1,0 +1,84 @@
+openapi: 3.0.3
+info:
+  title: Duze Catalogue API
+  version: 0.1.0
+  description: Increment 1 public read contract. Order commands and authentication are not implemented.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/v1/merchants:
+    get:
+      operationId: listMerchants
+      summary: Approved kitchens in active zones (up to 100, sorted by name)
+      parameters:
+        - in: query
+          name: query
+          schema: { type: string, maxLength: 120 }
+          description: Literal case-insensitive merchant or unrestricted dish search.
+        - in: query
+          name: category
+          schema: { type: string, enum: [Shisanyama, Takeaways, Stores] }
+        - in: query
+          name: zoneId
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Matching kitchens. Closed kitchens remain browsable.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Merchant' }
+        '400': { description: Malformed query }
+  /api/v1/merchants/{id}/menu:
+    get:
+      operationId: getMerchantMenu
+      summary: Read an approved kitchen's ordinary menu
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Restricted items are excluded; sold-out items retain their availability flag.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [merchant, items]
+                properties:
+                  merchant: { $ref: '#/components/schemas/Merchant' }
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/MenuItem' }
+        '400': { description: Malformed UUID }
+        '404': { description: Unknown, unapproved or paused-zone kitchen }
+  /actuator/health:
+    get:
+      operationId: health
+      responses:
+        '200': { description: API and database healthy }
+        '503': { description: A dependency is unhealthy }
+components:
+  schemas:
+    Merchant:
+      type: object
+      required: [id, name, category, serviceStatus, prepMinutes, zoneId]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        category: { type: string, enum: [Shisanyama, Takeaways, Stores] }
+        serviceStatus: { type: string, enum: [OPEN, CLOSED, BUSY] }
+        prepMinutes: { type: integer, minimum: 1 }
+        zoneId: { type: string, format: uuid }
+    MenuItem:
+      type: object
+      required: [id, name, priceCents, available]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        priceCents: { type: integer, minimum: 0, description: ZAR minor units, not a checkout quote }
+        available: { type: boolean }

@@ -1,0 +1,22 @@
+server:
+  port: ${PORT:8080}
+spring:
+  application:
+    name: duze-api
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/duze}
+    username: ${DATABASE_USER:duze}
+    password: ${DATABASE_PASSWORD:duze_dev_password}
+  flyway:
+    enabled: true
+  mvc:
+    problemdetails:
+      enabled: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
