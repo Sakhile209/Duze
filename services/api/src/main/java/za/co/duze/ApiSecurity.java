@@ -11,11 +11,13 @@ import org.springframework.http.HttpStatus;
 @Configuration
 class ApiSecurity {
     @Bean
-    SecurityFilterChain publicReadSecurityFilterChain(HttpSecurity http) throws Exception {
-        // Public read slice only. All other routes remain closed until identity/RBAC is implemented.
-        return http.authorizeHttpRequests(auth -> auth
+    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        return http
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/v1/merchants", "/api/v1/merchants/*/menu",
                                 "/actuator/health", "/openapi.yaml").permitAll()
+                        .requestMatchers("/api/v1/auth/**").permitAll()
                         .anyRequest().denyAll())
                 .exceptionHandling(errors -> errors.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .build();
